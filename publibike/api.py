@@ -1,14 +1,8 @@
-"""Shared helpers: API fetch, station parsing, database connection."""
+"""PubliBike API: fetch the station snapshot and apply the tracking rule (docs/api.md §3b)."""
 
-import os
 import unicodedata
-from pathlib import Path
 
-import psycopg
 import requests
-from dotenv import load_dotenv
-
-ROOT = Path(__file__).resolve().parent.parent
 
 API_URL = "https://rest.publibike.ch/v1/public/all/stations"
 USER_AGENT = "publibike-zurich-research/0.1 (personal data project; github.com/Jakobps1704/publibike_projekt)"
@@ -18,7 +12,7 @@ MIN_SHARE_TRACKED = 0.8
 
 
 def fetch_stations() -> list[dict]:
-    """Return the raw station records from the all/stations endpoint (docs/api.md §3b)."""
+    """Return the raw station records from the all/stations endpoint."""
     resp = requests.get(API_URL, headers={"User-Agent": USER_AGENT}, timeout=60)
     resp.raise_for_status()
     velospot = resp.json()["velospot"]
@@ -44,16 +38,3 @@ def parse_station(record: dict) -> dict:
         "lat": float(record["lat"]),
         "lon": float(record["lng"]),
     }
-
-
-def connect() -> psycopg.Connection:
-    """Connect using DATABASE_URL from the environment or .env in the repo root."""
-    load_dotenv(ROOT / ".env")
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        raise SystemExit("DATABASE_URL is not set (see .env.example)")
-    try:
-        return psycopg.connect(url)
-    except psycopg.Error as exc:
-        # The driver's message can echo parts of the URL, including the password.
-        raise SystemExit(f"Could not connect ({type(exc).__name__}). Check DATABASE_URL.") from None

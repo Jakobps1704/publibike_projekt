@@ -36,6 +36,13 @@ The current decisions, with short reasons. This file holds the **current state**
   - Only database errors fail the workflow.
 - **Schema setup via Python** `(tentative)` (`collector/setup_db.py` with `DATABASE_URL`), not the Supabase CLI or connector. It uses the same connection the collector needs, with no extra tooling.
 
+## Data access
+- **Read-only Postgres user `publibike_reader`** for analysis and for sharing with others. Its connection string is `ANALYSIS_DATABASE_URL`; the admin `DATABASE_URL` is for the collector only. It reads via RLS policies and has a 60 s statement timeout.
+- **Views `v_status` and `v_polls`** (`security_invoker`, so RLS applies and Supabase's REST API exposes nothing).
+- **Python helpers in the `publibike` package** (`publibike.data`), installable from git with the `analysis` extra. Collector and analysis share `publibike.api` and `publibike.db`.
+- **pandas** `(tentative)`: the most tutorials and examples; polars users can convert with `pl.from_pandas`.
+- **`status()` caches finished UTC days as Parquet**, so each day is downloaded once per user. This protects the shared 5 GB/month egress limit. Aggregates run in SQL (`hourly()`).
+
 ## Infrastructure
 - **Storage: Supabase free tier (Postgres).** Limits:
   - 500 MB database per project. This is the binding limit. Station counts take about 5–6 MB/day, so archive or aggregate before the limit is reached.

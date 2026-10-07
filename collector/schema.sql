@@ -49,3 +49,27 @@ alter table polls          enable row level security;
 alter table stations       enable row level security;
 alter table station_states enable row level security;
 alter table station_status enable row level security;
+
+-- Views for analysis. security_invoker makes them respect the caller's RLS; without it a view runs
+-- as its owner and would expose the tables through Supabase's REST API.
+
+-- One row per station and ok poll, with names instead of ids.
+create or replace view v_status with (security_invoker = true) as
+select p.polled_at,
+       ss.poll_id,
+       ss.station_number,
+       s.name               as station_name,
+       ss.bikes,
+       ss.ebikes,
+       ss.bikes + ss.ebikes as total,
+       st.name              as state
+from station_status ss
+join polls          p  using (poll_id)
+join stations       s  using (station_number)
+join station_states st using (state_id);
+
+-- Every collector run, with the time since the previous run (gaps = skipped or delayed runs).
+create or replace view v_polls with (security_invoker = true) as
+select poll_id, polled_at, ok, http_status, n_stations, n_tracked, error,
+       polled_at - lag(polled_at) over (order by polled_at) as gap
+from polls;

@@ -14,7 +14,8 @@ _Last updated: 2026-10-08_
 - **Built:**
   - Supabase schema (`collector/schema.sql`, applied with `collector/setup_db.py`).
   - Station sync (`collector/sync_stations.py`, daily workflow). 293 Zürich stations are tracked.
-  - Collector (`collector/poll.py`, 5-minute workflow `poll.yml`). Tested locally; poll 1 is in the database.
+  - Collector (`collector/poll.py`, 5-minute workflow `poll.yml`). Tested locally; the first polls are in the database.
+  - Data access: read-only user `publibike_reader`, views `v_status` / `v_polls`, Python helpers `publibike.data` with a local cache. See `docs/data_access.md`.
 - **Next:** watch the first scheduled runs (`polls` gaps and `not ok` rows) → add a keep-alive before GitHub's 60-day inactivity cutoff.
 
 ## Where things are
@@ -25,7 +26,9 @@ _Last updated: 2026-10-08_
 | `docs/api.md` | PubliBike API + GBFS reference. Read before touching the collector |
 | `docs/decisions.md` | Current decisions and why. Read before proposing anything structural |
 | `docs/findings.md` | What the data has shown so far (create it when the first finding exists) |
-| `collector/` | Schema, collector (`poll.py`), station sync, shared helpers (`common.py`) |
+| `docs/data_access.md` | How to query the database (Python helpers, SQL). Written for other people too |
+| `publibike/` | Installable package: `api.py` (fetch + parse), `db.py` (connections), `data.py` (analysis helpers) |
+| `collector/` | Scripts: `poll.py`, `sync_stations.py`, `setup_db.py` + `schema.sql`, `create_reader.py` |
 | `.github/workflows/` | Scheduled GitHub Actions jobs: `poll.yml` (every 5 min), `sync_stations.yml` (daily) |
 | `analysis/` | Notebooks/scripts, one per question, numbered `01_…` (planned) |
 | `data/` | Local data. **Gitignored, never commit** |

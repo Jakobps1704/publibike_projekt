@@ -7,7 +7,8 @@
   nothing is changed and the script exits with an error.
 """
 
-from common import MIN_SHARE_TRACKED, connect, fetch_stations, is_zurich, parse_station
+from publibike.api import MIN_SHARE_TRACKED, fetch_stations, is_zurich, parse_station
+from publibike.db import connect
 
 FIELDS = ("velospot_id", "name", "address", "lat", "lon")
 COORD_TOLERANCE = 1e-6  # degrees, ~10 cm
@@ -16,7 +17,7 @@ COORD_TOLERANCE = 1e-6  # degrees, ~10 cm
 def main() -> None:
     records = fetch_stations()
 
-    with connect() as conn:
+    with connect(admin=True) as conn:
         existing = {
             row[0]: dict(zip(("tracked", *FIELDS), row[1:]))
             for row in conn.execute(

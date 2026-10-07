@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 
 import requests
 
-from common import MIN_SHARE_TRACKED, connect, fetch_stations
+from publibike.api import MIN_SHARE_TRACKED, fetch_stations
+from publibike.db import connect
 
 
 def main() -> None:
@@ -31,7 +32,7 @@ def main() -> None:
         poll["error"] = f"{type(exc).__name__}: {exc}"[:500]
         records = None
 
-    with connect() as conn:
+    with connect(admin=True) as conn:
         tracked = {row[0] for row in conn.execute("select station_number from stations where tracked")}
 
         if records is not None:

@@ -9,10 +9,16 @@ dependencies = [
     "requests>=2.32",
 ]
 
+[project.optional-dependencies]
+# For publibike.data and notebooks: pip install -e ".[analysis]"
+analysis = [
+    "pandas>=2.2",
+    "pyarrow>=17",
+]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-# Scripts are run directly; install only the dependencies.
-packages = []
+packages = ["publibike"]
