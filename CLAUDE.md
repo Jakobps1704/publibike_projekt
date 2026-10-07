@@ -10,9 +10,11 @@ The scope is **deliberately open**. Don't narrow it, or build toward one specifi
 <!-- Claude: keep this block current. Rewrite it; don't append. Max ~10 lines. -->
 _Last updated: 2026-10-08_
 
-- **Built:** nothing yet. The repo has only context files.
-- **Blocked:** all PubliBike station endpoints return empty lists (custom API and GBFS). GBFS `station_status` has been frozen since 2026-09-05. Not yet checked from a normal browser on a Swiss connection. See `docs/api.md` → Known issues.
-- **Next:** confirm whether data is available → build the collector.
+- **Source:** `rest.publibike.ch/v1/public/all/stations` (`velospot` key). The documented endpoints are empty. See `docs/api.md` §3b.
+- **Built:**
+  - Supabase schema (`collector/schema.sql`, applied with `collector/setup_db.py`).
+  - Station sync (`collector/sync_stations.py`, daily workflow in `.github/workflows/`). 293 Zürich stations are tracked.
+- **Next:** add the `DATABASE_URL` GitHub secret → build the 5-minute collector.
 
 ## Where things are
 
@@ -22,7 +24,8 @@ _Last updated: 2026-10-08_
 | `docs/api.md` | PubliBike API + GBFS reference. Read before touching the collector |
 | `docs/decisions.md` | Current decisions and why. Read before proposing anything structural |
 | `docs/findings.md` | What the data has shown so far (create it when the first finding exists) |
-| `collector/` | Polling + storage code (planned) |
+| `collector/` | Schema, station sync, shared helpers (`common.py`); the poller is planned |
+| `.github/workflows/` | Scheduled GitHub Actions jobs (station sync; collector planned) |
 | `analysis/` | Notebooks/scripts, one per question, numbered `01_…` (planned) |
 | `data/` | Local data. **Gitignored, never commit** |
 

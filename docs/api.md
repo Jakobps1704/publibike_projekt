@@ -1,18 +1,18 @@
 # PubliBike API reference
 
-Reference for the PubliBike data project. Compiled 2026-10-07 from the official docs and live calls.
+Reference for the PubliBike data project. Compiled 2026-10-07 from the official docs and live calls, updated 2026-10-08.
 Marked **[observed]** = seen in a live response. **[spec]** = from the docs/standard, not yet seen with real data.
 
 ---
 
 ## TL;DR
 
-- PubliBike exposes **two public, unauthenticated, read-only sources**:
+- **The only source with data right now (2026-10-08) is `https://rest.publibike.ch/v1/public/all/stations`** (section 3b). Its station data is under the `velospot` key; the `publibike` key is empty.
+- The documented sources are public, unauthenticated, read-only, and **return empty station lists**:
   1. **Custom REST API** (`/v1/public/...`), richer: per-vehicle ids, bike/e-bike type, e-bike battery level.
   2. **Official GBFS v2.3 feed** (`/v1/gbfs/v2/...`), standardised, licensed **CC-BY-4.0**: aggregate counts per station.
-- Both are **current-state snapshots only**. No history, no trips. History must be built by polling and storing.
-- Polling limit: **max once per minute** (custom API docs; GBFS `ttl` = 60 s).
-- **Status 2026-10-07 ~22:00 UTC: every station endpoint returns an empty list** (both APIs). Unresolved. See "Known issues".
+- All sources are **current-state snapshots only**. No history, no trips. History must be built by polling and storing.
+- Polling limit: **max once per minute** (custom API docs; GBFS `ttl` = 60 s). Nothing is documented for the `all/stations` endpoint, so we assume the same limit.
 
 ---
 
@@ -113,7 +113,7 @@ Every response has the envelope `{ "data": {...}, "last_updated": <unix s>, "ttl
 |---|---|---|
 | `system_information` | `.../v1/gbfs/v2/en/system_information` | Populated |
 | `station_information` | `.../v1/gbfs/v2/en/station_information` | `stations: []`, `last_updated` fresh |
-| `station_status` | `.../v1/gbfs/v2/en/station_status` | `stations: []`, **`last_updated` 2026-09-05 15:14 UTC** (stale ~1 month) |
+| `station_status` | `.../v1/gbfs/v2/en/station_status` | `stations: []`. `last_updated` was frozen at 2026-09-05; fresh again on 2026-10-08, but still empty |
 | `vehicle_types` | `.../v1/gbfs/v2/en/vehicle_types` | Populated |
 
 **Not published:** `free_bike_status`, `system_regions`, `system_pricing_plans`, `system_alerts`, `geofencing_zones`. So there are no per-vehicle positions and no pricing.
@@ -148,22 +148,44 @@ Standard GBFS 2.3 fields. Expect at least: `station_id` (string), `name`, `lat`,
 
 ## 3. Which source to use
 
-| Need | Custom API | GBFS |
-|---|---|---|
-| Bikes / e-bikes available per station | Yes, count `vehicles` by `type` | Yes, `vehicle_types_available` |
-| Station capacity, fill ratio | Yes | Yes |
-| Individual bike ids (infer moves between stations) | **Yes** | No |
-| E-bike battery level (rideable vs. flat) | **Yes** | No |
-| Station `last_reported` (detect stale stations) | No | **Yes** |
-| Clear open-data license | No (contact PubliBike) | **Yes, CC-BY-4.0** |
-| Standard schema, existing tooling | No | Yes |
+| Need | Custom API | GBFS | `all/stations` (3b) |
+|---|---|---|---|
+| **Returns data today** | No | No | **Yes** |
+| Bikes / e-bikes available per station | Yes, count `vehicles` by `type` | Yes, `vehicle_types_available` | **Yes**, `totalNonElectricalBike` / `totalElectricalBike` in one call |
+| Station capacity, fill ratio | Yes | Yes | No capacity field |
+| Individual bike ids (infer moves between stations) | **Yes** | No | Only via one HTML call per station |
+| E-bike battery level (rideable vs. flat) | **Yes** (exact %) | No | Only via the HTML call, as a km-range bucket |
+| Station `last_reported` (detect stale stations) | No | **Yes** | No (only `mapIcon` out-of-order status) |
+| Clear open-data license | No (contact PubliBike) | **Yes, CC-BY-4.0** | No (undocumented) |
+| Standard schema, existing tooling | No | Yes | No |
 
-Current plan, once data flows: poll `/public/partner/stations` every 1–5 min, store raw JSON snapshots plus a flattened table (timestamp, station, vehicle id, type, battery). Use GBFS as a fallback and as the license-clean source.
+Current plan: poll every 5 min and store **station counts only**. Per-vehicle tracking is deferred (see `docs/decisions.md`). Of the three sources, only `all/stations` delivers counts right now, so it's the practical candidate. The choice isn't logged in `decisions.md` yet. The vehicle ids and battery levels above are the reason to come back to the custom API later.
 
 ---
 
+## 3b. Combined PubliBike + Velospot endpoint [observed 2026-10-08]
+
+- `GET https://rest.publibike.ch/v1/public/all/stations`: 200, about 1.27 MB, no auth.
+- Shape: `{ "publibike": {"stations": []}, "velospot": {"responseData": [...], "responseStatus": {...}, "extraData": {...}} }`.
+- `publibike.stations` is **empty**. All data is under `velospot.responseData`: **1687 stations, one network** (`encryptNetworkId` `a0plWVF5a3k2T2RuNWs2LzhYMTd3Zz09`), including about 253 in Zürich (e.g. Albisriederplatz). This suggests the PubliBike stations now run on the Velospot backend (unverified).
+- Station fields: `station_name`, `station_address`, `encryptNetworkId`, `station_id` (base64-encoded, opaque), `stationNumber` (e.g. "600654"), `lat`/`lng` (strings), `totalBike`, `totalNonElectricalBike`, `totalElectricalBike`, `totalCargoBike`, `totalEscooter`, `totalGlider`, `mapIcon`, `mapIconFullpath`, `stationColor`, `detailsRoute`.
+- `mapIcon` acts as a status: `stationAvailableWithBike`, `…NoBike`, `…WithBikeMixed`, `…NoBikeMixed`, `stationOutOfOrder`, `…WithBikeTrain`, `…NoBikeTrain`, `stationIsVelostation`.
+- Per-station bikes: `detailsRoute` = `https://www.velospot.info/customer/public/getStationInfo/{encryptNetworkId}/{station_id}`. It returns `{"renderHtml": "..."}`: an HTML fragment listing each bike's ID (e.g. `001722e`; the suffix `e` means e-bike and `m` means a regular bike, which has an empty range cell) and its range as a "Km-Potenzial" bucket (e.g. `56-60 km`). The fragment has to be parsed as HTML. No exact battery %.
+- Zürich [observed 2026-10-08]:
+  - **293** station names end in `- Zürich`. This includes agglomeration stations such as `Bahnhof Kloten - Zürich` and `… - Urdorf - Zürich`, so the suffix marks the Zürich region, not the city.
+  - **250** have "Zürich" in `station_address`. All 250 also have the name suffix.
+  - All Zürich stations have a `stationNumber` in 490061–492001.
+  - Zürich has no cargo bikes, e-scooters or gliders.
+  - `totalBike` = `totalNonElectricalBike` + `totalElectricalBike`.
+  - `stationNumber` and `station_id` are both unique across all 1687 stations. Both are strings; `stationNumber` is numeric.
+- Snapshot 2026-10-08: 8267 vehicles (5619 e-bikes, 2501 bikes, 147 e-scooters), 214 stations with 0 bikes, 29 out of order.
+
 ## 4. Known issues and open questions
 
-- **Empty data (2026-10-07 ~22:00 UTC).** `/public/stations` → `[]`, `/public/partner/stations` → `{"stations":[]}`, `/public/stations/1` → 404, both GBFS station feeds → `[]`. Static feeds (`system_information`, `vehicle_types`) work. Calls came from a cloud tool, not a browser. Possible causes: blocking of non-browser or non-Swiss clients, a backend outage, or a deliberate shutdown. `station_status` frozen since 2026-09-05 suggests a problem upstream, not just with our client. **Next step:** test from a normal browser on a Swiss connection.
-- Fallback data sources if PubliBike's own feeds stay empty: the Swiss federal aggregator `https://sharedmobility.ch/gbfs.json` (SFOE, https://github.com/SFOE/sharedmobility, https://opentransportdata.swiss/de/dataset/sharedmobility), or the endpoints the PubliBike app calls.
-- Undocumented: full `State` enum, `Type` id values, whether `capacity` counts e-bike-only slots, whether station ids are identical across both APIs, and the license for the custom API.
+- **Documented endpoints are empty.** First seen 2026-10-07 ~22:00 UTC from a cloud tool: `/public/stations` → `[]`, `/public/partner/stations` → `{"stations":[]}`, `/public/stations/1` → 404, both GBFS station feeds → `[]`. Static feeds (`system_information`, `vehicle_types`) work. **Rechecked 2026-10-08 from the user's local machine with curl: still empty**, including `rest.publibike.ch/v1/public/stations`. So the client isn't being blocked. The likely explanation is the move to the Velospot backend (3b), and the old endpoints may never come back. GBFS `station_status` `last_updated` is fresh again (2026-10-07 ~23:14 UTC; earlier it was frozen at 2026-09-05), but the list is still empty.
+- Fallback if `all/stations` disappears: the Swiss federal aggregator `https://sharedmobility.ch/gbfs.json` (SFOE, https://github.com/SFOE/sharedmobility, https://opentransportdata.swiss/de/dataset/sharedmobility). Not yet checked whether it carries the PubliBike/Velospot stations.
+- `all/stations` open questions:
+  - Rate limit and license.
+  - Whether `station_id` / `stationNumber` stay the same over time. We key on `stationNumber`, and the daily sync logs a warning if a station's `station_id` changes.
+  - The meaning of `Mixed`/`Train` in `mapIcon`.
+- Undocumented (custom API): full `State` enum, `Type` id values, whether `capacity` counts e-bike-only slots, whether station ids are identical across both APIs, and the license.

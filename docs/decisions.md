@@ -17,11 +17,20 @@ The current decisions, with short reasons. This file holds the **current state**
 
 ## Data collection
 - **Poll every 5 min.** Gentler on the API and on storage than the 1-minute minimum. Limitation: anything that happens within one 5-minute window is missed, such as a bike taken and returned between two polls.
-- **Store station counts and a bike event log.**
-  - Counts: one row per station per poll, with bikes, e-bikes, capacity and state.
-  - Events: compare vehicle ids between consecutive polls and log *appeared* / *left* with the vehicle id, type, battery and station.
-  - The exact schema is `(open)`.
-- **Source: PubliBike custom API `/public/partner/stations`** `(tentative)`. It is the only source with vehicle ids and battery levels, which the events need. GBFS has counts only but is CC-BY-4.0. See `docs/api.md`.
+- **Track station counts only:** bikes, e-bikes and state per station over time.
+- **Vehicle tracking deferred** (decided 2026-10-08). The per-bike event log (*appeared* / *left* by vehicle id, with battery) is postponed so the first version stays simple. It can be added later from the custom API, but no vehicle history will exist from before then.
+- **Schema:** `polls` (every run, including failed ones), `stations`, `station_status` and `station_states`. See `collector/schema.sql`.
+- **A `station_status` row every poll** for now. It is simpler to query than change-only, but fills the 500 MB in roughly 3 months, so switch to change-only or aggregate before then.
+- **Source: `rest.publibike.ch/v1/public/all/stations`**, `velospot` key. It is the only endpoint with data. Previously the documented custom API `/public/partner/stations`, which now returns empty lists. See `docs/api.md` §3b.
+- **Station key: `stationNumber`** as an integer (`stations.station_number`). The opaque `station_id` is stored as `velospot_id`, because the per-station details URL needs it. Whether the key stays stable is unverified, so the sync logs any `velospot_id` change.
+- **Zurich only, via the `stations` table.** Tracked stations are the rows with `tracked = true`, and the collector ignores every other station in the response.
+  - **Rule:** the station name contains "Zürich" (case-insensitive). This is simpler than a geographic boundary. It matches 293 stations, including the agglomeration (see `docs/api.md` §3b).
+  - **`collector/sync_stations.py`** maintains the list, daily on GitHub Actions (03:17 UTC) plus manual runs:
+    - It inserts new matches and updates metadata and `last_seen` in place, with no history.
+    - It sets `tracked = false` for stations that no longer match or are missing from the API, and back to `true` when they return. It never deletes rows.
+    - It changes nothing if the response looks like an outage: no matches, or under 80% of the currently tracked stations.
+  - The sync must run before the collector's first run.
+- **Schema setup via Python** `(tentative)` (`collector/setup_db.py` with `DATABASE_URL`), not the Supabase CLI or connector. It uses the same connection the collector needs, with no extra tooling.
 
 ## Infrastructure
 - **Storage: Supabase free tier (Postgres).** Limits:
