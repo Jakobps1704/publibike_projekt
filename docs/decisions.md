@@ -30,6 +30,10 @@ The current decisions, with short reasons. This file holds the **current state**
     - It sets `tracked = false` for stations that no longer match or are missing from the API, and back to `true` when they return. It never deletes rows.
     - It changes nothing if the response looks like an outage: no matches, or under 80% of the currently tracked stations.
   - The sync must run before the collector's first run.
+- **Failed polls** `(tentative)`. `collector/poll.py` records every run in `polls`, and writes `station_status` rows only when the run is ok.
+  - Not ok: an HTTP or network error, or fewer than 80% of tracked stations in the response.
+  - Fetch problems exit 0, so a PubliBike outage doesn't trigger a failed-workflow email every 5 minutes. Query `polls where not ok` instead.
+  - Only database errors fail the workflow.
 - **Schema setup via Python** `(tentative)` (`collector/setup_db.py` with `DATABASE_URL`), not the Supabase CLI or connector. It uses the same connection the collector needs, with no extra tooling.
 
 ## Infrastructure

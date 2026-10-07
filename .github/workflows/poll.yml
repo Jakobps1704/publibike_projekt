@@ -1,0 +1,27 @@
+name: Poll stations
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # GitHub often delays or skips runs; polls.polled_at stores the actual time
+  workflow_dispatch:         # manual run from the Actions tab
+
+# Never run two polls at once; a queued run replaces a waiting one.
+concurrency:
+  group: poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install .
+      - run: python collector/poll.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

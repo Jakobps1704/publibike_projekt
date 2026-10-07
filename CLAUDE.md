@@ -13,8 +13,9 @@ _Last updated: 2026-10-08_
 - **Source:** `rest.publibike.ch/v1/public/all/stations` (`velospot` key). The documented endpoints are empty. See `docs/api.md` §3b.
 - **Built:**
   - Supabase schema (`collector/schema.sql`, applied with `collector/setup_db.py`).
-  - Station sync (`collector/sync_stations.py`, daily workflow in `.github/workflows/`). 293 Zürich stations are tracked.
-- **Next:** add the `DATABASE_URL` GitHub secret → build the 5-minute collector.
+  - Station sync (`collector/sync_stations.py`, daily workflow). 293 Zürich stations are tracked.
+  - Collector (`collector/poll.py`, 5-minute workflow `poll.yml`). Tested locally; poll 1 is in the database.
+- **Next:** watch the first scheduled runs (`polls` gaps and `not ok` rows) → add a keep-alive before GitHub's 60-day inactivity cutoff.
 
 ## Where things are
 
@@ -24,8 +25,8 @@ _Last updated: 2026-10-08_
 | `docs/api.md` | PubliBike API + GBFS reference. Read before touching the collector |
 | `docs/decisions.md` | Current decisions and why. Read before proposing anything structural |
 | `docs/findings.md` | What the data has shown so far (create it when the first finding exists) |
-| `collector/` | Schema, station sync, shared helpers (`common.py`); the poller is planned |
-| `.github/workflows/` | Scheduled GitHub Actions jobs (station sync; collector planned) |
+| `collector/` | Schema, collector (`poll.py`), station sync, shared helpers (`common.py`) |
+| `.github/workflows/` | Scheduled GitHub Actions jobs: `poll.yml` (every 5 min), `sync_stations.yml` (daily) |
 | `analysis/` | Notebooks/scripts, one per question, numbered `01_…` (planned) |
 | `data/` | Local data. **Gitignored, never commit** |
 

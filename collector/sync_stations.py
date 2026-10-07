@@ -7,10 +7,7 @@
   nothing is changed and the script exits with an error.
 """
 
-from common import connect, fetch_stations, is_zurich, parse_station
-
-# Abort if fewer than this share of the currently tracked stations would stay tracked.
-MIN_SHARE_KEPT = 0.8
+from common import MIN_SHARE_TRACKED, connect, fetch_stations, is_zurich, parse_station
 
 FIELDS = ("velospot_id", "name", "address", "lat", "lon")
 COORD_TOLERANCE = 1e-6  # degrees, ~10 cm
@@ -42,7 +39,7 @@ def main() -> None:
 
         n_tracked_before = sum(s["tracked"] for s in existing.values())
         n_tracked_after = sum(s["tracked"] for s in seen.values())
-        if n_tracked_after == 0 or n_tracked_after < MIN_SHARE_KEPT * n_tracked_before:
+        if n_tracked_after == 0 or n_tracked_after < MIN_SHARE_TRACKED * n_tracked_before:
             raise SystemExit(
                 f"Implausible response: {len(records)} stations, {n_tracked_after} match "
                 f"(currently tracked: {n_tracked_before}). No changes made."

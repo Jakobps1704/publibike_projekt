@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parent.parent
 API_URL = "https://rest.publibike.ch/v1/public/all/stations"
 USER_AGENT = "publibike-zurich-research/0.1 (personal data project; github.com/Jakobps1704/publibike_projekt)"
 
+# A response is treated as an outage if it contains fewer than this share of the tracked stations.
+MIN_SHARE_TRACKED = 0.8
+
 
 def fetch_stations() -> list[dict]:
     """Return the raw station records from the all/stations endpoint (docs/api.md §3b)."""
